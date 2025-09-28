@@ -1,0 +1,39 @@
+{
+    "manifest_version": 3,
+    "name": "Audio Key Analyzer",
+    "version": "1.0",
+    "description": "再生中の音楽のキーを推定するChrome拡張機能",
+    "action": {
+        "default_popup": "popup.html"
+    },
+    "permissions": [
+        "tabs",
+        "activeTab",
+        "tabCapture",
+        "storage",
+        "offscreen"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "essentia/dist/*",
+                "audio-processor.js",
+                "sandbox.html"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ],
+    "sandbox": {
+        "pages": [
+            "sandbox.html"
+        ]
+    },
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    }
+}
