@@ -1,0 +1,54 @@
+{
+    "extensionName": {
+        "message": "Audio Key Analyzer",
+        "description": "拡張機能の名前"
+    },
+    "extensionDescription": {
+        "message": "再生中の音楽のキーを推定するChrome拡張機能",
+        "description": "拡張機能の説明"
+    },
+    "detectionTimeLabel": {
+        "message": "検出時間（秒）:",
+        "description": "検出時間の設定ラベル"
+    },
+    "startButtonText": {
+        "message": "キー・BPM推定を開始",
+        "description": "開始ボタンのテキスト"
+    },
+    "initialMessage": {
+        "message": "ボタンを押してキー・BPM推定を開始してください",
+        "description": "初期状態のメッセージ"
+    },
+    "showLogsButton": {
+        "message": "ログを表示",
+        "description": "ログを表示するボタン"
+    },
+    "hideLogsButton": {
+        "message": "ログを非表示",
+        "description": "ログを非表示にするボタン"
+    },
+    "capturingAudio": {
+        "message": "音声をキャプチャ中...",
+        "description": "音声キャプチャ中のメッセージ"
+    },
+    "computing": {
+        "message": "計算中...",
+        "description": "計算中のメッセージ"
+    },
+    "errorPrefix": {
+        "message": "エラー:",
+        "description": "エラーメッセージのプレフィックス"
+    },
+    "keyLabel": {
+        "message": "キー:",
+        "description": "キーのラベル"
+    },
+    "bpmLabel": {
+        "message": "BPM:",
+        "description": "BPMのラベル"
+    },
+    "timeoutError": {
+        "message": "タイムアウト: 処理に時間がかかりすぎています",
+        "description": "タイムアウトエラーメッセージ"
+    }
+}

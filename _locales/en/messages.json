@@ -1,0 +1,54 @@
+{
+    "extensionName": {
+        "message": "Audio Key Analyzer",
+        "description": "Extension name"
+    },
+    "extensionDescription": {
+        "message": "Chrome extension to detect the musical key of currently playing audio",
+        "description": "Extension description"
+    },
+    "detectionTimeLabel": {
+        "message": "Detection Time (sec):",
+        "description": "Detection time setting label"
+    },
+    "startButtonText": {
+        "message": "Start Key & BPM Detection",
+        "description": "Start button text"
+    },
+    "initialMessage": {
+        "message": "Press the button to start key and BPM detection",
+        "description": "Initial state message"
+    },
+    "showLogsButton": {
+        "message": "Show Logs",
+        "description": "Show logs button"
+    },
+    "hideLogsButton": {
+        "message": "Hide Logs",
+        "description": "Hide logs button"
+    },
+    "capturingAudio": {
+        "message": "Capturing audio...",
+        "description": "Audio capture message"
+    },
+    "computing": {
+        "message": "Computing...",
+        "description": "Computing message"
+    },
+    "errorPrefix": {
+        "message": "Error:",
+        "description": "Error message prefix"
+    },
+    "keyLabel": {
+        "message": "Key:",
+        "description": "Key label"
+    },
+    "bpmLabel": {
+        "message": "BPM:",
+        "description": "BPM label"
+    },
+    "timeoutError": {
+        "message": "Timeout: Processing is taking too long",
+        "description": "Timeout error message"
+    }
+}

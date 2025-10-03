@@ -134,13 +134,13 @@
 <body>
     <div class="settings">
         <div class="setting-item">
-            <label for="detection-time">検出時間（秒）:</label>
+            <label for="detection-time" data-i18n="detectionTimeLabel">検出時間（秒）:</label>
             <input type="number" id="detection-time" value="8" min="3" max="30" step="1">
         </div>
     </div>
-    <button id="start-button">キー・BPM推定を開始</button>
-    <div id="result">ボタンを押してキー・BPM推定を開始してください</div>
-    <button id="toggle-logs" class="toggle-button">ログを表示</button>
+    <button id="start-button" data-i18n="startButtonText">キー・BPM推定を開始</button>
+    <div id="result" data-i18n="initialMessage">ボタンを押してキー・BPM推定を開始してください</div>
+    <button id="toggle-logs" class="toggle-button" data-i18n="showLogsButton">ログを表示</button>
     <div id="logs"></div>
     <script src="popup.js"></script>
 </body>

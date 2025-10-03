@@ -8,6 +8,11 @@ let isLogsVisible = false;
 let currentTimeout = null; // タイムアウトIDを管理
 let handleMessages; // 関数変数として宣言
 
+// i18n helper function
+function i18n(messageName, substitutions) {
+  return chrome.i18n.getMessage(messageName, substitutions);
+}
+
 function log(message) {
   logsDiv.innerHTML += message + '\n';
   logsDiv.scrollTop = logsDiv.scrollHeight;
@@ -16,7 +21,7 @@ function log(message) {
 function toggleLogs() {
   isLogsVisible = !isLogsVisible;
   logsDiv.style.display = isLogsVisible ? 'block' : 'none';
-  toggleLogsButton.textContent = isLogsVisible ? 'ログを非表示' : 'ログを表示';
+  toggleLogsButton.textContent = isLogsVisible ? i18n('hideLogsButton') : i18n('showLogsButton');
 }
 
 function clearCurrentTimeout() {
@@ -32,18 +37,29 @@ function clearCurrentTimeout() {
 function initializePopup() {
   log('Popup opened.');
 
+  // i18nテキストを適用
+  applyI18n();
+
   // ポップアップ開始時に古いタイムアウトをクリア
   clearCurrentTimeout();
 
-  updateStatus('ボタンを押してキー・BPM推定を開始してください');
+  updateStatus(i18n('initialMessage'));
 
   startButton.addEventListener('click', startCapture);
   toggleLogsButton.addEventListener('click', toggleLogs);
   chrome.runtime.onMessage.addListener(handleMessages);
 }
 
+function applyI18n() {
+  // data-i18n属性を持つすべての要素にテキストを適用
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    const key = element.getAttribute('data-i18n');
+    element.textContent = i18n(key);
+  });
+}
+
 function startCapture() {
-  updateStatus('音声をキャプチャ中...');
+  updateStatus(i18n('capturingAudio'));
   logsDiv.innerHTML = '';
   log('Capture button clicked.');
   startButton.disabled = true;
@@ -58,7 +74,7 @@ function startCapture() {
   // タイムアウト処理を追加（設定時間 + 22秒のバッファ）
   const timeoutDuration = (detectionTimeSeconds + 22) * 1000;
   currentTimeout = setTimeout(() => {
-    updateResult(null, null, null, 'タイムアウト: 処理に時間がかかりすぎています');
+    updateResult(null, null, null, i18n('timeoutError'));
     log(`Process timed out after ${timeoutDuration / 1000} seconds`);
     currentTimeout = null;
   }, timeoutDuration);
@@ -124,7 +140,7 @@ function startCapture() {
           log(`Converted to array with length: ${audioArray.length}`);
 
           // 計算中メッセージを表示
-          updateStatus('計算中...');
+          updateStatus(i18n('computing'));
 
           chrome.runtime.sendMessage(
             {
@@ -159,7 +175,8 @@ function startCapture() {
 }
 
 function updateStatus(message) {
-  if (message === '計算中...') {
+  // 計算中メッセージのチェックを国際化対応
+  if (message === i18n('computing')) {
     resultDiv.innerHTML = `<p class="computing">${message}</p>`;
   } else {
     resultDiv.innerHTML = `<p>${message}</p>`;
@@ -171,11 +188,11 @@ function updateResult(key, scale, bpm, error) {
   clearCurrentTimeout();
 
   if (error) {
-    resultDiv.innerHTML = `<p style="color: red;">エラー: ${error}</p>`;
+    resultDiv.innerHTML = `<p style="color: red;">${i18n('errorPrefix')} ${error}</p>`;
   } else if (key) {
-    let resultText = `<p style="color: green; font-size: 18px; font-weight: bold;">キー: ${key} ${scale || ''}</p>`;
+    let resultText = `<p style="color: green; font-size: 18px; font-weight: bold;">${i18n('keyLabel')} ${key} ${scale || ''}</p>`;
     if (bpm) {
-      resultText += `<p style="color: blue; font-size: 16px; font-weight: bold;">BPM: ${Math.round(bpm)}</p>`;
+      resultText += `<p style="color: blue; font-size: 16px; font-weight: bold;">${i18n('bpmLabel')} ${Math.round(bpm)}</p>`;
     }
     resultDiv.innerHTML = resultText;
   }
