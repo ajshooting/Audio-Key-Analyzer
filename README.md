@@ -1,6 +1,9 @@
 # Key Finder - Chrome Extension
 
-Chrome 拡張機能として再生中音声を録音し、Essentia.js を使ってキーとBPMを推定します。
+Chrome 拡張機能として再生中音声を録音し、[Essentia.js](https://mtg.github.io/essentia.js/) を使ってキーとBPMを推定します。
+
+Chrome ウェブストア:
+https://chromewebstore.google.com/detail/lfcaafpepmhjbiiiglahjdameobdjdch
 
 ## ファイル構成
 
