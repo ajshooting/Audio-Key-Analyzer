@@ -53,6 +53,19 @@ jobs:
           set -euo pipefail
           scripts/package-extension.sh "${GITHUB_REF_NAME#v}" "${GITHUB_SHA}" "${GITHUB_WORKSPACE}"
 
+      - name: Prepare release notes from the changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v target="## [${version}]" '
+            index($0, target) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+
       - name: Create the release and attach the package
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,9 +73,11 @@ jobs:
         run: |
           set -euo pipefail
           archive_name="Audio-Key-Analyzer-${GITHUB_REF_NAME}.zip"
+          release_notes="$(<release-notes.md)"
           gh release create "$GITHUB_REF_NAME" \
             "$archive_name" \
             "${archive_name}.sha256" \
             --verify-tag \
             --generate-notes \
+            --notes "$release_notes" \
             --fail-on-no-commits

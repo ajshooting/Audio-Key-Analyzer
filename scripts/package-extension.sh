@@ -35,6 +35,7 @@ package_paths=(
   sandbox.js
   audio-processor.js
   README.md
+  CHANGELOG.md
   PRIVACY.md
   LICENSE
   _locales
