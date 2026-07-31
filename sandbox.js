@@ -4,17 +4,11 @@ function sendLog(message) {
 
 let essentia;
 
-function loadScript(url) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = url;
-    script.onload = resolve;
-    script.onerror = (err) => reject(new Error(`Script load error for ${url}`));
-    document.head.appendChild(script);
-  });
-}
-
 window.addEventListener('message', async function (event) {
+  if (event.source !== parent || !event.data || typeof event.data !== 'object') {
+    return;
+  }
+
   try {
     if (event.data.type === 'init-sandbox') {
       sendLog('Received init message.');
@@ -27,26 +21,19 @@ window.addEventListener('message', async function (event) {
       }
 
       try {
-        sendLog('Loading WASM script...');
-        await loadScript(event.data.essentiaWasmUrl);
-        sendLog('WASM script loaded, checking for EssentiaWASM...');
-
         // EssentiaWASMが利用可能か確認
         if (typeof EssentiaWASM !== 'function') {
-          throw new Error('EssentiaWASM function not found after loading script');
+          throw new Error('EssentiaWASM function not found');
         }
 
         sendLog('Initializing WASM module...');
         // EssentiaWASMを直接呼び出して初期化
         const wasmModule = await EssentiaWASM();
-        sendLog('WASM module initialized. Loading core script...');
-
-        await loadScript(event.data.essentiaCoreUrl);
-        sendLog('Core script loaded, checking for Essentia...');
+        sendLog('WASM module initialized. Checking for Essentia...');
 
         // Essentiaクラスが利用可能か確認
         if (typeof Essentia !== 'function') {
-          throw new Error('Essentia class not found after loading core script');
+          throw new Error('Essentia class not found');
         }
 
         sendLog('Instantiating Essentia...');

@@ -55,8 +55,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Sandbox からのメッセージを処理
   window.addEventListener('message', (event) => {
+    if (!iframe || event.source !== iframe.contentWindow) {
+      return;
+    }
+
     const data = event.data;
-    if (!data) return;
+    if (!data || typeof data !== 'object') return;
 
     // ログメッセージの処理
     if (data.action === 'log') {

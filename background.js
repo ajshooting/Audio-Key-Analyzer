@@ -80,15 +80,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
           // 少し待ってからメッセージを送信
           setTimeout(() => {
-            // Essentiaファイルの正しいURLを生成
-            const essentiaWasmUrl = chrome.runtime.getURL('essentia/dist/essentia-wasm.web.js');
-            const essentiaCoreUrl = chrome.runtime.getURL('essentia/dist/essentia.js-core.umd.js');
-
             chrome.runtime.sendMessage({
               target: 'offscreen',
-              type: 'init-sandbox',
-              essentiaWasmUrl: essentiaWasmUrl,
-              essentiaCoreUrl: essentiaCoreUrl
+              type: 'init-sandbox'
             }).catch(err => sendLog(`Error sending init message: ${err.message}`));
           }, 100);
 

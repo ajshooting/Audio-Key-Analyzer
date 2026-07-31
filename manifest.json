@@ -21,18 +21,6 @@
     "background": {
         "service_worker": "background.js"
     },
-    "web_accessible_resources": [
-        {
-            "resources": [
-                "essentia/dist/*",
-                "audio-processor.js",
-                "sandbox.html"
-            ],
-            "matches": [
-                "<all_urls>"
-            ]
-        }
-    ],
     "sandbox": {
         "pages": [
             "sandbox.html"
