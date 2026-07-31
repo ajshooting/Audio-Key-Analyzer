@@ -1,0 +1,81 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag, manifest, and source files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use the format vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "The tagged commit must be included in the main branch."
+            exit 1
+          fi
+
+          manifest_version="$(jq -r '.version' manifest.json)"
+          tag_version="${tag#v}"
+          if [[ "$manifest_version" != "$tag_version" ]]; then
+            echo "Tag version ($tag_version) does not match manifest.json ($manifest_version)."
+            exit 1
+          fi
+
+          jq empty manifest.json _locales/en/messages.json _locales/ja/messages.json
+          for file in background.js popup.js offscreen.js sandbox.js audio-processor.js; do
+            node --check "$file"
+          done
+
+      - name: Build the Chrome Web Store package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          package_dir="${RUNNER_TEMP}/audio-key-analyzer-package"
+          archive_name="Audio-Key-Analyzer-${GITHUB_REF_NAME}.zip"
+          mkdir -p "$package_dir"
+
+          cp manifest.json background.js popup.html popup.js \
+            offscreen.html offscreen.js sandbox.html sandbox.js \
+            audio-processor.js README.md PRIVACY.md LICENSE "$package_dir/"
+          cp -R _locales icons essentia "$package_dir/"
+
+          (
+            cd "$package_dir"
+            zip -q -r "${GITHUB_WORKSPACE}/${archive_name}" .
+          )
+          sha256sum "$archive_name" > "${archive_name}.sha256"
+
+      - name: Create the release and attach the package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_name="Audio-Key-Analyzer-${GITHUB_REF_NAME}.zip"
+          gh release create "$GITHUB_REF_NAME" \
+            "$archive_name" \
+            "${archive_name}.sha256" \
+            --verify-tag \
+            --generate-notes \
+            --fail-on-no-commits
