@@ -1,7 +1,7 @@
 # Audio Key Analyzer Privacy Policy
 
 Effective date: July 31, 2026  
-Last updated: July 31, 2026
+Last updated: August 1, 2026
 
 Audio Key Analyzer analyzes audio from the active browser tab to estimate its musical key and BPM. This policy explains how the extension handles that audio.
 
@@ -15,7 +15,9 @@ The extension uses the audio only to estimate the musical key and BPM requested 
 
 - Audio processing is performed locally on the user's device.
 - Audio samples are held temporarily in memory during capture and analysis.
-- Audio samples and analysis results are not written to persistent storage, such as files, databases, or browser storage.
+- Audio samples are not written to files, databases, or browser storage.
+- To restore the popup after it is closed, the extension temporarily stores only the analysis phase, selected duration, timestamps, final result, or error in `chrome.storage.session`. Audio samples are never included.
+- `chrome.storage.session` is memory-only. This state is cleared when Chrome restarts or when the extension is disabled, reloaded, or updated.
 
 ## Transmission and sharing
 
@@ -28,7 +30,8 @@ The extension uses the audio only to estimate the musical key and BPM requested 
 The extension uses these permissions only for its stated purpose:
 
 - `tabCapture`: Captures audio from the active tab after the user starts an analysis.
-- `offscreen`: Provides an extension-owned document in which the bundled local audio analysis code can run.
+- `offscreen`: Provides an extension-owned document that continues capture, preserves tab audio playback, and runs the bundled local analysis after the popup closes.
+- `storage`: Temporarily retains the audio-free analysis status and result in memory-only `chrome.storage.session` so the popup can be restored.
 
 The use of information received from Chrome APIs adheres to the Chrome Web Store User Data Policy, including its Limited Use requirements.
 
@@ -45,7 +48,7 @@ Questions about this policy can be submitted through [GitHub Issues](https://git
 # Audio Key Analyzer プライバシーポリシー
 
 制定日：2026年7月31日  
-最終更新日：2026年7月31日
+最終更新日：2026年8月1日
 
 Audio Key Analyzerは、現在のブラウザタブの音声を解析して、楽曲のキーとBPMを推定するChrome拡張機能です。本ポリシーでは、拡張機能が音声をどのように取り扱うかを説明します。
 
@@ -59,7 +62,9 @@ Audio Key Analyzerは、現在のブラウザタブの音声を解析して、�
 
 - 音声処理はユーザーの端末内で行います。
 - 音声サンプルは、取得・解析中に限り一時的にメモリ上で取り扱います。
-- 音声サンプルおよび解析結果を、ファイル、データベース、ブラウザストレージなどの永続ストレージへ保存しません。
+- 音声サンプルを、ファイル、データベース、ブラウザストレージへ保存しません。
+- ポップアップを閉じた後に表示を復元するため、処理段階、選択した解析時間、時刻、完了結果またはエラーだけを`chrome.storage.session`へ一時保持します。音声サンプルは含まれません。
+- `chrome.storage.session`はメモリ専用です。この状態はChromeの再起動、拡張機能の無効化・再読み込み・更新時に消去されます。
 
 ## 外部送信と共有
 
@@ -72,7 +77,8 @@ Audio Key Analyzerは、現在のブラウザタブの音声を解析して、�
 以下の権限を、明示した目的にのみ使用します。
 
 - `tabCapture`：ユーザーが解析を開始した後、現在のタブの音声を取得するために使用します。
-- `offscreen`：同梱されたローカル音声解析コードを実行する、拡張機能専用の文書を提供するために使用します。
+- `offscreen`：ポップアップを閉じた後も、音声取得、タブ音声の再生維持、同梱コードによるローカル解析を続けるために使用します。
+- `storage`：ポップアップの表示を復元するため、音声を含まない解析状態と結果をメモリ専用の`chrome.storage.session`へ一時保持するために使用します。
 
 Chrome APIから受け取った情報は、Limited Use要件を含むChrome Web Store User Data Policyに従って使用します。
 
