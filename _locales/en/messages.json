@@ -15,6 +15,10 @@
         "message": "Start Key & BPM Detection",
         "description": "Start button text"
     },
+    "privacyNotice": {
+        "message": "Audio from the active tab is processed temporarily on this device. It is not stored or transmitted externally.",
+        "description": "Local audio processing and data handling notice"
+    },
     "initialMessage": {
         "message": "Press the button to start key and BPM detection",
         "description": "Initial state message"

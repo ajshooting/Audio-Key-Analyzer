@@ -15,6 +15,10 @@
         "message": "キー・BPM推定を開始",
         "description": "開始ボタンのテキスト"
     },
+    "privacyNotice": {
+        "message": "現在のタブ音声を端末内で一時的に処理します。音声の保存・外部送信は行いません。",
+        "description": "ローカル音声処理とデータ取扱いに関する説明"
+    },
     "initialMessage": {
         "message": "ボタンを押してキー・BPM推定を開始してください",
         "description": "初期状態のメッセージ"
