@@ -139,7 +139,7 @@ window.addEventListener('message', async function (event) {
           // 代替方法: PercivalBpmEstimator
           try {
             const bpmEstimate = essentia.PercivalBpmEstimator(vector);
-            bpmResult = bpmEstimate;
+            bpmResult = bpmEstimate.bpm;
             sendLog(`Alternative BPM detection completed. BPM: ${bpmResult}`);
           } catch (altBpmError) {
             sendLog(`Alternative BPM detection also failed: ${altBpmError.message}`);
