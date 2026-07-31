@@ -62,7 +62,8 @@ function updateResult(key, scale, bpm, error) {
   keyResult.style.fontWeight = 'bold';
   const elements = [keyResult];
 
-  if (Number.isFinite(Number(bpm))) {
+  const hasBpm = bpm !== null && bpm !== undefined && bpm !== '';
+  if (hasBpm && Number.isFinite(Number(bpm))) {
     const bpmResult = createMessage(`${i18n('bpmLabel')} ${Math.round(Number(bpm))}`, null, 'blue');
     bpmResult.style.fontSize = '16px';
     bpmResult.style.fontWeight = 'bold';
