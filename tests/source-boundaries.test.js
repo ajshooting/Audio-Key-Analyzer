@@ -38,8 +38,9 @@ test('service worker state contains no audio and uses session storage', () => {
   assert.doesNotMatch(background, /let isProcessing|pendingAudioData/);
 });
 
-test('popup does not coerce an unavailable BPM result to zero', () => {
+test('popup delegates key and BPM formatting to the tested display helpers', () => {
   const popup = read('popup.js');
 
-  assert.match(popup, /bpm !== null && bpm !== undefined && bpm !== ''/);
+  assert.match(popup, /AudioKeyDisplay\.formatKeyWithRelative/);
+  assert.match(popup, /AudioKeyDisplay\.formatApproximateBpm/);
 });

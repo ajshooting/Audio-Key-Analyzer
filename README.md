@@ -50,6 +50,7 @@ Chrome 116以降を必要とするのは、service workerで取得した`tabCapt
 主なファイルは次のとおりです。
 
 - `popup.html` / `popup.js`: 解析時間の入力、開始操作、進捗・結果表示
+- `display-utils.js`: 近似BPMと相対調を含むキー表記の整形
 - `background.js`: offscreen documentのライフサイクル、stream ID取得、セッション状態管理
 - `offscreen.html` / `offscreen.js`: 音声取得、再生維持、バッファリング、sandboxとの通信
 - `audio-processor.js`: ステレオ音声をモノラル化するAudioWorklet

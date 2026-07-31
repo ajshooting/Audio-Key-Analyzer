@@ -27,7 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           jq empty manifest.json _locales/en/messages.json _locales/ja/messages.json
-          for file in background.js popup.js offscreen.js sandbox.js audio-processor.js tests/*.test.js; do
+          for file in background.js popup.js display-utils.js offscreen.js sandbox.js audio-processor.js tests/*.test.js; do
             node --check "$file"
           done
 

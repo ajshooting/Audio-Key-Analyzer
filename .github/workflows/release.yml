@@ -42,7 +42,7 @@ jobs:
           fi
 
           jq empty manifest.json _locales/en/messages.json _locales/ja/messages.json
-          for file in background.js popup.js offscreen.js sandbox.js audio-processor.js; do
+          for file in background.js popup.js display-utils.js offscreen.js sandbox.js audio-processor.js; do
             node --check "$file"
           done
           node --test tests/*.test.js

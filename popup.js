@@ -57,14 +57,26 @@ function updateResult(key, scale, bpm, error) {
     return;
   }
 
-  const keyResult = createMessage(`${i18n('keyLabel')} ${key} ${scale || ''}`.trim(), null, 'green');
+  const formattedKey = globalThis.AudioKeyDisplay.formatKeyWithRelative(key, scale);
+  const relativeKeyMatch = formattedKey.match(/^(.+?) \((.+)\)$/);
+  const primaryKey = relativeKeyMatch ? relativeKeyMatch[1] : formattedKey;
+  const keyResult = createMessage(`${i18n('keyLabel')} ${primaryKey}`, null, 'green');
   keyResult.style.fontSize = '18px';
   keyResult.style.fontWeight = 'bold';
+
+  if (relativeKeyMatch) {
+    const relativeKey = document.createElement('span');
+    relativeKey.textContent = ` (${relativeKeyMatch[2]})`;
+    relativeKey.style.fontSize = '13px';
+    relativeKey.style.fontWeight = 'normal';
+    keyResult.appendChild(relativeKey);
+  }
+
   const elements = [keyResult];
 
-  const hasBpm = bpm !== null && bpm !== undefined && bpm !== '';
-  if (hasBpm && Number.isFinite(Number(bpm))) {
-    const bpmResult = createMessage(`${i18n('bpmLabel')} ${Math.round(Number(bpm))}`, null, 'blue');
+  const formattedBpm = globalThis.AudioKeyDisplay.formatApproximateBpm(bpm, i18n('bpmLabel'));
+  if (formattedBpm) {
+    const bpmResult = createMessage(formattedBpm, null, 'blue');
     bpmResult.style.fontSize = '16px';
     bpmResult.style.fontWeight = 'bold';
     elements.push(bpmResult);

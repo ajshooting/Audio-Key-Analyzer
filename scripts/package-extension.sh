@@ -29,6 +29,7 @@ package_paths=(
   background.js
   popup.html
   popup.js
+  display-utils.js
   offscreen.html
   offscreen.js
   sandbox.html

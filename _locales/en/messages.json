@@ -48,7 +48,7 @@
         "description": "Key label"
     },
     "bpmLabel": {
-        "message": "BPM:",
+        "message": "BPM",
         "description": "BPM label"
     },
     "timeoutError": {

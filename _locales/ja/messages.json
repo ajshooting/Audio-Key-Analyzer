@@ -48,7 +48,7 @@
         "description": "キーのラベル"
     },
     "bpmLabel": {
-        "message": "BPM:",
+        "message": "BPM",
         "description": "BPMのラベル"
     },
     "timeoutError": {
