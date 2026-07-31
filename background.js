@@ -1,153 +1,112 @@
 const OFFSCREEN_DOCUMENT_PATH = 'offscreen.html';
-let pendingAudioData = null;
+const OFFSCREEN_DOCUMENT_URL = chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
+
+let creatingOffscreenDocument = null;
 let isProcessing = false;
 
 async function hasOffscreenDocument() {
   const contexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT']
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [OFFSCREEN_DOCUMENT_URL]
   });
   return contexts.length > 0;
 }
 
 async function setupOffscreenDocument() {
+  if (await hasOffscreenDocument()) {
+    return;
+  }
+
+  if (!creatingOffscreenDocument) {
+    creatingOffscreenDocument = chrome.offscreen.createDocument({
+      url: OFFSCREEN_DOCUMENT_PATH,
+      reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK', 'IFRAME_SCRIPTING'],
+      justification: 'Capture and preserve active-tab audio, then analyze it locally in a sandboxed iframe.'
+    });
+  }
+
   try {
-    const hasDocument = await hasOffscreenDocument();
-    if (!hasDocument) {
-      sendLog('Creating new offscreen document...');
-      await chrome.offscreen.createDocument({
-        url: OFFSCREEN_DOCUMENT_PATH,
-        reasons: ['USER_MEDIA'],
-        justification: 'Audio processing using Essentia.js via sandboxed iframe.'
-      });
-      sendLog('Offscreen document created.');
-      // ドキュメントが完全に準備されるまで少し待つ
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } else {
-      sendLog('Offscreen document already exists.');
-    }
-  } catch (error) {
-    sendLog(`Error in setupOffscreenDocument: ${error.message}`);
-    throw error;
+    await creatingOffscreenDocument;
+  } finally {
+    creatingOffscreenDocument = null;
   }
 }
 
 async function closeOffscreenDocument() {
   if (await hasOffscreenDocument()) {
     await chrome.offscreen.closeDocument();
-    sendLog('Offscreen document closed.');
   }
 }
 
-function sendLog(message) {
+function sendResultToPopup(result) {
   chrome.runtime.sendMessage({
-    action: 'log',
-    source: 'background',
-    message: message
-  }).catch(() => { }); // エラーを無視（popup が閉じている場合など）
+    target: 'popup',
+    action: 'updateResult',
+    ...result
+  }).catch(() => { });
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id || msg.target !== 'background') {
+    return false;
+  }
+
   switch (msg.action) {
-    case 'processAudio':
+    case 'startAnalysis': {
+      const detectionTime = Number(msg.detectionTime);
+      if (!Number.isInteger(detectionTime) || detectionTime < 3 || detectionTime > 30) {
+        sendResponse({ success: false, error: 'Detection time must be between 3 and 30 seconds.' });
+        return false;
+      }
+
       if (isProcessing) {
-        sendLog('Already processing, ignoring new request.');
         sendResponse({ success: false, error: 'Already processing' });
         return false;
       }
+
       isProcessing = true;
-      sendLog('Received audio data from popup.');
-
-      // 音声データの詳細をログ出力
-      const audioData = msg.audioData;
-      sendLog(`Audio data type: ${typeof audioData}`);
-      sendLog(`Audio data constructor: ${audioData ? audioData.constructor.name : 'null'}`);
-      sendLog(`Audio data is array: ${Array.isArray(audioData)}`);
-      sendLog(`Audio data length: ${audioData ? audioData.length : 'undefined'}`);
-
-      if (!audioData || !Array.isArray(audioData) || audioData.length === 0) {
-        sendLog('Invalid or empty audio data received');
-        isProcessing = false;
-        sendResponse({ success: false, error: 'Invalid audio data' });
-        return false;
-      }
-
-      pendingAudioData = audioData;
 
       (async () => {
         try {
           await setupOffscreenDocument();
-          sendLog('Offscreen document is ready, sending init message.');
+          const streamId = await chrome.tabCapture.getMediaStreamId();
+          const response = await chrome.runtime.sendMessage({
+            target: 'offscreen',
+            type: 'start-analysis',
+            streamId,
+            detectionTime
+          });
 
-          // 少し待ってからメッセージを送信
-          setTimeout(() => {
-            chrome.runtime.sendMessage({
-              target: 'offscreen',
-              type: 'init-sandbox'
-            }).catch(err => sendLog(`Error sending init message: ${err.message}`));
-          }, 100);
+          if (!response?.success) {
+            throw new Error(response?.error || 'Offscreen document did not accept the analysis request.');
+          }
 
           sendResponse({ success: true });
         } catch (error) {
-          sendLog(`Error setting up offscreen: ${error.message}`);
           isProcessing = false;
-          chrome.runtime.sendMessage({
-            action: 'updateResult',
-            error: `Setup Error: ${error.message}`
-          }).catch(() => { });
+          await closeOffscreenDocument().catch(() => { });
+          sendResultToPopup({ error: `Setup Error: ${error.message}` });
           sendResponse({ success: false, error: error.message });
         }
       })();
-      return true; // 非同期レスポンスを有効にする
+      return true;
+    }
 
-    case 'sandbox-ready':
-      sendLog('Sandbox is ready. Sending audio data.');
-      if (pendingAudioData) {
-        sendLog(`Sending audio data - type: ${typeof pendingAudioData}, is array: ${Array.isArray(pendingAudioData)}, length: ${pendingAudioData.length}`);
-
-        // 配列として受信したデータをそのまま送信
-        let audioDataToSend = {
-          data: pendingAudioData,
-          type: 'Array'
-        };
-
-        sendLog(`Prepared audio data object with ${audioDataToSend.data.length} samples`);
-
-        chrome.runtime.sendMessage({
-          target: 'offscreen',
-          type: 'audio-data',
-          audioData: audioDataToSend
-        }).catch(err => sendLog(`Error sending audio data: ${err.message}`));
-        pendingAudioData = null;
-      } else {
-        sendLog('No pending audio data to send');
-      }
-      sendResponse({ success: true });
-      return false;
-
-    case 'analysisComplete':
+    case 'analysisComplete': {
       isProcessing = false;
-      sendLog('Analysis complete. Sending result to popup.');
-      const result = {
+      sendResultToPopup({
         key: msg.key,
         scale: msg.scale,
         bpm: msg.bpm,
         error: msg.error
-      };
-      chrome.runtime.sendMessage({
-        action: 'updateResult',
-        ...result
-      }).catch(() => { });
-      closeOffscreenDocument();
+      });
+      closeOffscreenDocument().catch(() => { });
       sendResponse({ success: true });
       return false;
+    }
 
-    case 'log':
-      // ログメッセージをpopupに転送
-      chrome.runtime.sendMessage(msg).catch(() => { });
-      sendResponse({ success: true });
+    default:
+      sendResponse({ success: false, error: 'Unknown action' });
       return false;
   }
-
-  sendResponse({ success: false, error: 'Unknown action' });
-  return false;
 });

@@ -17,7 +17,7 @@ class AudioProcessor extends AudioWorkletProcessor {
       monoChannel.set(leftChannel);
     }
 
-    // Post the mono audio data back to the main thread (popup.js).
+    // Post the mono audio data back to the offscreen document.
     this.port.postMessage(monoChannel, [monoChannel.buffer]);
 
     // Keep the processor alive.

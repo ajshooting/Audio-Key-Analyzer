@@ -79,98 +79,19 @@ function startCapture() {
     currentTimeout = null;
   }, timeoutDuration);
 
-  // 結果を受信したらタイムアウトをクリア
-  const originalHandleMessages = handleMessages;
-  handleMessages = (request) => {
-    if (request.action === 'updateResult') {
+  chrome.runtime.sendMessage({
+    target: 'background',
+    action: 'startAnalysis',
+    detectionTime: detectionTimeSeconds
+  }, (response) => {
+    if (chrome.runtime.lastError) {
       clearCurrentTimeout();
-      handleMessages = originalHandleMessages; // 元の関数に戻す
-    }
-    originalHandleMessages(request);
-  };
-
-  chrome.tabCapture.capture({ audio: true, video: false }, async (capturedStream) => {
-    if (chrome.runtime.lastError || !capturedStream) {
+      updateResult(null, null, null, `Communication Error: ${chrome.runtime.lastError.message}`);
+    } else if (!response?.success) {
       clearCurrentTimeout();
-      const errorMsg = chrome.runtime.lastError ? chrome.runtime.lastError.message : "Stream not available.";
-      updateResult(null, null, null, `Capture Error: ${errorMsg}`);
-      return;
-    }
-
-    let stream = capturedStream;
-    try {
-      let audioContext = new AudioContext({ sampleRate: 44100 });
-      log(`AudioContext sample rate: ${audioContext.sampleRate} Hz`);
-      await audioContext.audioWorklet.addModule('audio-processor.js');
-      const source = audioContext.createMediaStreamSource(stream);
-      let workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
-
-      const totalSamples = audioContext.sampleRate * detectionTimeSeconds; // ユーザー設定の時間を使用
-      const audioBuffer = new Float32Array(totalSamples);
-      let bufferPosition = 0;
-
-      workletNode.port.onmessage = (event) => {
-        const audioChunk = event.data;
-        if (bufferPosition + audioChunk.length < totalSamples) {
-          audioBuffer.set(audioChunk, bufferPosition);
-          bufferPosition += audioChunk.length;
-        } else {
-          const remainingLength = totalSamples - bufferPosition;
-          if (remainingLength > 0) {
-            audioBuffer.set(audioChunk.subarray(0, remainingLength), bufferPosition);
-          }
-
-          // クリーンアップ
-          if (workletNode) {
-            workletNode.port.onmessage = null;
-            workletNode.disconnect();
-            workletNode = null;
-          }
-          if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-          }
-          if (audioContext && audioContext.state !== 'closed') {
-            audioContext.close();
-            audioContext = null;
-          }
-
-          log(`Audio captured: ${audioBuffer.length} samples, sending to background.`);
-          // Float32Arrayを通常の配列に変換してから送信
-          const audioArray = Array.from(audioBuffer);
-          log(`Converted to array with length: ${audioArray.length}`);
-
-          // 計算中メッセージを表示
-          updateStatus(i18n('computing'));
-
-          chrome.runtime.sendMessage(
-            {
-              action: 'processAudio',
-              audioData: audioArray,
-              detectionTime: detectionTimeSeconds
-            },
-            (response) => {
-              if (chrome.runtime.lastError) {
-                clearCurrentTimeout();
-                log(`Error sending message: ${chrome.runtime.lastError.message}`);
-                updateResult(null, null, null, `Communication Error: ${chrome.runtime.lastError.message}`);
-              } else if (response && !response.success) {
-                clearCurrentTimeout();
-                log(`Background error: ${response.error || 'Unknown error'}`);
-                updateResult(null, null, null, `Background Error: ${response.error || 'Unknown error'}`);
-              } else {
-                log('Message sent successfully to background.');
-              }
-            }
-          );
-        }
-      };
-
-      source.connect(workletNode);
-      source.connect(audioContext.destination);
-    } catch (error) {
-      clearCurrentTimeout();
-      updateResult(null, null, null, `Audio Setup Error: ${error.message}`);
+      updateResult(null, null, null, `Background Error: ${response?.error || 'Unknown error'}`);
+    } else {
+      log('Background capture started successfully. The popup may now be closed.');
     }
   });
 }
@@ -201,6 +122,10 @@ function updateResult(key, scale, bpm, error) {
 }
 
 handleMessages = function (request) {
+  if (request.target && request.target !== 'popup') {
+    return;
+  }
+
   if (request.action === 'updateResult') {
     log('Received final result.');
     // タイムアウトをクリア（推定完了時）
@@ -208,6 +133,8 @@ handleMessages = function (request) {
     updateResult(request.key, request.scale, request.bpm, request.error);
   } else if (request.action === 'log') {
     log(`[${request.source}] ${request.message}`);
+  } else if (request.action === 'analysisStatus') {
+    updateStatus(i18n(request.status === 'computing' ? 'computing' : 'capturingAudio'));
   }
 };
 
