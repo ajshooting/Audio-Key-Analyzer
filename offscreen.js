@@ -1,10 +1,13 @@
 const AUDIO_SAMPLE_RATE = 44100;
+const ANALYSIS_TIMEOUT_BUFFER_MS = 22000;
 
 let iframe;
 let iframeReady = false;
 let sandboxReady = false;
 let sandboxInitializationError = null;
 let analysisRunning = false;
+let currentAnalysis = null;
+let localAnalysisState = { status: 'idle' };
 const sandboxWaiters = [];
 
 function sendLog(message, source = 'offscreen') {
@@ -16,20 +19,36 @@ function sendLog(message, source = 'offscreen') {
   }).catch(() => { });
 }
 
-function notifyPopupStatus(status) {
-  chrome.runtime.sendMessage({
-    target: 'popup',
-    action: 'analysisStatus',
-    status
-  }).catch(() => { });
+async function sendToBackground(message, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        target: 'background',
+        ...message
+      });
+      if (!response?.success) {
+        throw new Error(response?.error || 'Background rejected the message.');
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await new Promise(resolve => setTimeout(resolve, attempt * 250));
+      }
+    }
+  }
+  throw lastError;
 }
 
-function notifyAnalysisComplete(result) {
-  chrome.runtime.sendMessage({
-    target: 'background',
-    action: 'analysisComplete',
-    ...result
-  }).catch(() => { });
+function updateLocalStatus(status) {
+  localAnalysisState = {
+    ...localAnalysisState,
+    status
+  };
+  sendToBackground({ action: 'analysisStatus', status }).catch(error => {
+    sendLog(`Could not report analysis status: ${error.message}`);
+  });
 }
 
 function settleSandboxWaiters(error) {
@@ -62,13 +81,24 @@ function postToSandbox(message, transfer = []) {
   iframe.contentWindow.postMessage(message, '*', transfer);
 }
 
-async function captureAudio(streamId, detectionTime) {
+function abortError(signal) {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error('Audio capture was cancelled.');
+}
+
+async function captureAudio(streamId, detectionTime, signal) {
   let stream = null;
   let audioContext = null;
   let source = null;
   let workletNode = null;
+  let abortHandler = null;
 
   try {
+    if (signal.aborted) {
+      throw abortError(signal);
+    }
+
     stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
@@ -78,6 +108,10 @@ async function captureAudio(streamId, detectionTime) {
       },
       video: false
     });
+
+    if (signal.aborted) {
+      throw abortError(signal);
+    }
 
     audioContext = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE });
     await audioContext.audioWorklet.addModule(chrome.runtime.getURL('audio-processor.js'));
@@ -100,6 +134,9 @@ async function captureAudio(streamId, detectionTime) {
         settled = true;
         callback(value);
       };
+
+      abortHandler = () => finish(reject, abortError(signal));
+      signal.addEventListener('abort', abortHandler, { once: true });
 
       workletNode.port.onmessage = (event) => {
         const audioChunk = event.data;
@@ -127,6 +164,9 @@ async function captureAudio(streamId, detectionTime) {
       source.connect(audioContext.destination);
     });
   } finally {
+    if (abortHandler) {
+      signal.removeEventListener('abort', abortHandler);
+    }
     if (workletNode) {
       workletNode.port.onmessage = null;
       workletNode.disconnect();
@@ -143,12 +183,59 @@ async function captureAudio(streamId, detectionTime) {
   }
 }
 
-async function runAnalysis(streamId, detectionTime) {
+function completeAnalysis(result) {
+  if (!analysisRunning) {
+    return;
+  }
+
+  analysisRunning = false;
+  const analysis = currentAnalysis;
+  currentAnalysis = null;
+
+  if (analysis) {
+    clearTimeout(analysis.timeoutId);
+    analysis.abortController.abort(new Error('Analysis finished.'));
+  }
+
+  const error = typeof result.error === 'string' && result.error.length > 0
+    ? result.error
+    : null;
+  const completedState = {
+    status: error ? 'error' : 'completed',
+    finishedAt: Date.now()
+  };
+
+  if (error) {
+    completedState.error = error;
+  } else {
+    completedState.result = {
+      key: result.key,
+      scale: result.scale,
+      bpm: result.bpm
+    };
+  }
+  localAnalysisState = completedState;
+
+  sendToBackground({
+    action: 'analysisComplete',
+    key: result.key,
+    scale: result.scale,
+    bpm: result.bpm,
+    ...(error ? { error } : {})
+  }).catch(sendError => {
+    sendLog(`Could not report the final result: ${sendError.message}`);
+  });
+}
+
+async function runAnalysis(streamId, detectionTime, signal) {
   try {
-    notifyPopupStatus('capturing');
-    const audioData = await captureAudio(streamId, detectionTime);
-    notifyPopupStatus('computing');
+    const audioData = await captureAudio(streamId, detectionTime, signal);
+    updateLocalStatus('computing');
     await waitForSandbox();
+
+    if (signal.aborted) {
+      throw abortError(signal);
+    }
 
     sendLog(`Captured ${audioData.length} samples. Sending them directly to the sandbox.`);
     postToSandbox({
@@ -159,9 +246,33 @@ async function runAnalysis(streamId, detectionTime) {
       }
     }, [audioData.buffer]);
   } catch (error) {
-    analysisRunning = false;
-    notifyAnalysisComplete({ error: `Audio Error: ${error.message}` });
+    completeAnalysis({ error: `Audio Error: ${error.message}` });
   }
+}
+
+function startAnalysis(streamId, detectionTime) {
+  if (analysisRunning) {
+    return { success: false, error: 'Already processing' };
+  }
+  if (typeof streamId !== 'string' || streamId.length === 0) {
+    return { success: false, error: 'Invalid tab capture stream ID.' };
+  }
+  if (!Number.isInteger(detectionTime) || detectionTime < 3 || detectionTime > 30) {
+    return { success: false, error: 'Detection time must be between 3 and 30 seconds.' };
+  }
+
+  analysisRunning = true;
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    abortController.abort(new Error('Analysis timed out.'));
+    completeAnalysis({ error: 'Timeout: Processing is taking too long.' });
+  }, (detectionTime * 1000) + ANALYSIS_TIMEOUT_BUFFER_MS);
+
+  currentAnalysis = { abortController, timeoutId };
+  localAnalysisState = { status: 'capturing' };
+  updateLocalStatus('capturing');
+  runAnalysis(streamId, detectionTime, abortController.signal);
+  return { success: true };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -169,20 +280,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
-  if (msg.type !== 'start-analysis') {
-    sendResponse({ success: false, error: 'Unknown offscreen message' });
-    return false;
+  switch (msg.type) {
+    case 'start-analysis':
+      sendResponse(startAnalysis(msg.streamId, Number(msg.detectionTime)));
+      return false;
+    case 'get-analysis-state':
+      sendResponse({ success: true, state: localAnalysisState });
+      return false;
+    default:
+      sendResponse({ success: false, error: 'Unknown offscreen message' });
+      return false;
   }
-
-  if (analysisRunning) {
-    sendResponse({ success: false, error: 'Already processing' });
-    return false;
-  }
-
-  analysisRunning = true;
-  runAnalysis(msg.streamId, msg.detectionTime);
-  sendResponse({ success: true });
-  return false;
 });
 
 window.addEventListener('message', (event) => {
@@ -208,9 +316,8 @@ window.addEventListener('message', (event) => {
       if (!sandboxReady && data.error) {
         sandboxInitializationError = new Error(data.error);
         settleSandboxWaiters(sandboxInitializationError);
-      } else if (analysisRunning) {
-        analysisRunning = false;
-        notifyAnalysisComplete({
+      } else {
+        completeAnalysis({
           key: data.key,
           scale: data.scale,
           bpm: data.bpm,

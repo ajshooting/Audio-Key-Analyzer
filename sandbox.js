@@ -102,47 +102,52 @@ window.addEventListener('message', async function (event) {
       }
 
       try {
-        // Float32Arrayをstd::vector<float>に変換
-        const vector = essentia.arrayToVector(processedAudioData);
-        sendLog('Audio data converted to vector.');
-
-        // キー検出
-        const keyResult = essentia.KeyExtractor(vector);
-        sendLog(`KeyExtractor completed. Result: ${keyResult.key} ${keyResult.scale}`);
-
-        // BPM検出のための準備
-        sendLog('Starting BPM detection...');
-
-        // BPM検出用アルゴリズム
-        let bpmResult = null;
+        let vector;
         try {
-          // RhythmExtractor2013アルゴリズムを使用
-          const rhythmResult = essentia.RhythmExtractor2013(vector);
-          bpmResult = rhythmResult.bpm;
-          sendLog(`BPM detection completed. BPM: ${bpmResult}`);
-        } catch (bpmError) {
-          sendLog(`BPM detection failed, trying alternative method: ${bpmError.message}`);
+          // Float32Arrayをstd::vector<float>に変換
+          vector = essentia.arrayToVector(processedAudioData);
+          sendLog('Audio data converted to vector.');
 
-          // 代替方法: PercivalBpmEstimator
+          // キー検出
+          const keyResult = essentia.KeyExtractor(vector);
+          sendLog(`KeyExtractor completed. Result: ${keyResult.key} ${keyResult.scale}`);
+
+          // BPM検出のための準備
+          sendLog('Starting BPM detection...');
+
+          // BPM検出用アルゴリズム
+          let bpmResult = null;
           try {
-            const bpmEstimate = essentia.PercivalBpmEstimator(vector);
-            bpmResult = bpmEstimate.bpm;
-            sendLog(`Alternative BPM detection completed. BPM: ${bpmResult}`);
-          } catch (altBpmError) {
-            sendLog(`Alternative BPM detection also failed: ${altBpmError.message}`);
-            // BPMは取得できないが、キーは返す
+            // RhythmExtractor2013アルゴリズムを使用
+            const rhythmResult = essentia.RhythmExtractor2013(vector);
+            bpmResult = rhythmResult.bpm;
+            sendLog(`BPM detection completed. BPM: ${bpmResult}`);
+          } catch (bpmError) {
+            sendLog(`BPM detection failed, trying alternative method: ${bpmError.message}`);
+
+            // 代替方法: PercivalBpmEstimator
+            try {
+              const bpmEstimate = essentia.PercivalBpmEstimator(vector);
+              bpmResult = bpmEstimate.bpm;
+              sendLog(`Alternative BPM detection completed. BPM: ${bpmResult}`);
+            } catch (altBpmError) {
+              sendLog(`Alternative BPM detection also failed: ${altBpmError.message}`);
+              // BPMは取得できないが、キーは返す
+            }
+          }
+
+          parent.postMessage({
+            type: 'result',
+            key: keyResult.key,
+            scale: keyResult.scale,
+            bpm: bpmResult
+          }, '*');
+        } finally {
+          // WASM側に確保されたベクターは成功・失敗にかかわらず解放する
+          if (vector) {
+            vector.delete();
           }
         }
-
-        // ベクターのメモリを解放
-        vector.delete();
-
-        parent.postMessage({
-          type: 'result',
-          key: keyResult.key,
-          scale: keyResult.scale,
-          bpm: bpmResult
-        }, '*');
 
       } catch (analysisError) {
         sendLog(`Analysis error: ${analysisError.message}`);
