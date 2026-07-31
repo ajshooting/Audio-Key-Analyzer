@@ -45,26 +45,13 @@ jobs:
           for file in background.js popup.js offscreen.js sandbox.js audio-processor.js; do
             node --check "$file"
           done
+          node --test tests/*.test.js
 
       - name: Build the Chrome Web Store package
         shell: bash
         run: |
           set -euo pipefail
-
-          package_dir="${RUNNER_TEMP}/audio-key-analyzer-package"
-          archive_name="Audio-Key-Analyzer-${GITHUB_REF_NAME}.zip"
-          mkdir -p "$package_dir"
-
-          cp manifest.json background.js popup.html popup.js \
-            offscreen.html offscreen.js sandbox.html sandbox.js \
-            audio-processor.js README.md PRIVACY.md LICENSE "$package_dir/"
-          cp -R _locales icons essentia "$package_dir/"
-
-          (
-            cd "$package_dir"
-            zip -q -r "${GITHUB_WORKSPACE}/${archive_name}" .
-          )
-          sha256sum "$archive_name" > "${archive_name}.sha256"
+          scripts/package-extension.sh "${GITHUB_REF_NAME#v}" "${GITHUB_SHA}" "${GITHUB_WORKSPACE}"
 
       - name: Create the release and attach the package
         env:
