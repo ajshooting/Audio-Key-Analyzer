@@ -1,0 +1,35 @@
+name: Validate extension
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Validate JSON and JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq empty manifest.json _locales/en/messages.json _locales/ja/messages.json
+          for file in background.js popup.js offscreen.js sandbox.js audio-processor.js tests/*.test.js; do
+            node --check "$file"
+          done
+
+      - name: Run automated tests
+        run: node --test tests/*.test.js
