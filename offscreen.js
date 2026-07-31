@@ -1,5 +1,7 @@
 const AUDIO_SAMPLE_RATE = 44100;
 const ANALYSIS_TIMEOUT_BUFFER_MS = 22000;
+const PLAYBACK_FADE_IN_SECONDS = 0.005;
+const PLAYBACK_FADE_OUT_SECONDS = 0.01;
 
 let iframe;
 let iframeReady = false;
@@ -87,10 +89,35 @@ function abortError(signal) {
     : new Error('Audio capture was cancelled.');
 }
 
+function wait(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function fadeOutPlayback(audioContext, gainNode) {
+  if (!audioContext || !gainNode || audioContext.state !== 'running') {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  if (typeof gainNode.gain.cancelAndHoldAtTime === 'function') {
+    gainNode.gain.cancelAndHoldAtTime(now);
+  } else {
+    const currentGain = gainNode.gain.value;
+    gainNode.gain.cancelScheduledValues(now);
+    gainNode.gain.setValueAtTime(currentGain, now);
+  }
+  gainNode.gain.linearRampToValueAtTime(0, now + PLAYBACK_FADE_OUT_SECONDS);
+  await wait((PLAYBACK_FADE_OUT_SECONDS * 1000) + 2);
+}
+
 async function captureAudio(streamId, detectionTime, signal) {
   let stream = null;
-  let audioContext = null;
-  let source = null;
+  let playbackContext = null;
+  let playbackSource = null;
+  let playbackGain = null;
+  let analysisContext = null;
+  let analysisSource = null;
+  let analysisSink = null;
   let workletNode = null;
   let abortHandler = null;
 
@@ -113,18 +140,34 @@ async function captureAudio(streamId, detectionTime, signal) {
       throw abortError(signal);
     }
 
-    audioContext = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE });
-    await audioContext.audioWorklet.addModule(chrome.runtime.getURL('audio-processor.js'));
-    await audioContext.resume();
+    // tabCapture mutes the tab's normal output. Restore it immediately through a
+    // low-latency context before the analysis worklet is initialized.
+    playbackContext = new AudioContext({ latencyHint: 'interactive' });
+    playbackSource = playbackContext.createMediaStreamSource(stream);
+    playbackGain = playbackContext.createGain();
+    playbackGain.gain.setValueAtTime(0, playbackContext.currentTime);
+    playbackGain.gain.linearRampToValueAtTime(1, playbackContext.currentTime + PLAYBACK_FADE_IN_SECONDS);
+    playbackSource.connect(playbackGain);
+    playbackGain.connect(playbackContext.destination);
+    await playbackContext.resume();
 
-    source = audioContext.createMediaStreamSource(stream);
-    workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+    analysisContext = new AudioContext({
+      sampleRate: AUDIO_SAMPLE_RATE,
+      latencyHint: 'interactive'
+    });
+    await analysisContext.audioWorklet.addModule(chrome.runtime.getURL('audio-processor.js'));
+    await analysisContext.resume();
 
-    const totalSamples = audioContext.sampleRate * detectionTime;
+    analysisSource = analysisContext.createMediaStreamSource(stream);
+    workletNode = new AudioWorkletNode(analysisContext, 'audio-processor');
+    analysisSink = analysisContext.createGain();
+    analysisSink.gain.value = 0;
+
+    const totalSamples = analysisContext.sampleRate * detectionTime;
     const audioBuffer = new Float32Array(totalSamples);
     let bufferPosition = 0;
 
-    sendLog(`Capturing ${detectionTime} seconds at ${audioContext.sampleRate} Hz.`);
+    sendLog(`Capturing ${detectionTime} seconds at ${analysisContext.sampleRate} Hz.`);
 
     return await new Promise((resolve, reject) => {
       let settled = false;
@@ -159,9 +202,9 @@ async function captureAudio(streamId, detectionTime, signal) {
         }, { once: true });
       }
 
-      source.connect(workletNode);
-      workletNode.connect(audioContext.destination);
-      source.connect(audioContext.destination);
+      analysisSource.connect(workletNode);
+      workletNode.connect(analysisSink);
+      analysisSink.connect(analysisContext.destination);
     });
   } finally {
     if (abortHandler) {
@@ -171,14 +214,28 @@ async function captureAudio(streamId, detectionTime, signal) {
       workletNode.port.onmessage = null;
       workletNode.disconnect();
     }
-    if (source) {
-      source.disconnect();
+    if (analysisSource) {
+      analysisSource.disconnect();
     }
+    if (analysisSink) {
+      analysisSink.disconnect();
+    }
+    if (analysisContext && analysisContext.state !== 'closed') {
+      await analysisContext.close().catch(() => { });
+    }
+
+    await fadeOutPlayback(playbackContext, playbackGain);
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
-    if (audioContext && audioContext.state !== 'closed') {
-      await audioContext.close().catch(() => { });
+    if (playbackSource) {
+      playbackSource.disconnect();
+    }
+    if (playbackGain) {
+      playbackGain.disconnect();
+    }
+    if (playbackContext && playbackContext.state !== 'closed') {
+      await playbackContext.close().catch(() => { });
     }
   }
 }

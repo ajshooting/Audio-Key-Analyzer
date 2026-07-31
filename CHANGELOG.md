@@ -22,6 +22,7 @@
 
 ### Fixed
 
+- tab capture開始直後に再生専用AudioContextを接続し、終了時も短くフェードすることで音声の途切れやクリックノイズを軽減
 - `PercivalBpmEstimator()`の戻り値全体ではなく、数値の`bpm`を使用するよう修正
 - AudioWorkletや録音の初期化・タイムアウト・中断時にstreamとAudioContextを確実に解放
 - service workerの再起動や結果通知失敗によって解析中状態が残り続ける経路を修正

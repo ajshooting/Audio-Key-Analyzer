@@ -44,3 +44,15 @@ test('popup delegates key and BPM formatting to the tested display helpers', () 
   assert.match(popup, /AudioKeyDisplay\.formatKeyWithRelative/);
   assert.match(popup, /AudioKeyDisplay\.formatApproximateBpm/);
 });
+
+test('tab playback is restored before the analysis worklet is initialized', () => {
+  const offscreen = read('offscreen.js');
+  const playbackContext = offscreen.indexOf("new AudioContext({ latencyHint: 'interactive' })");
+  const workletInitialization = offscreen.indexOf('analysisContext.audioWorklet.addModule');
+
+  assert.ok(playbackContext >= 0);
+  assert.ok(workletInitialization > playbackContext);
+  assert.match(offscreen, /playbackGain\.gain\.linearRampToValueAtTime\(1/);
+  assert.match(offscreen, /fadeOutPlayback\(playbackContext, playbackGain\)/);
+  assert.doesNotMatch(offscreen, /analysisSource\.connect\(analysisContext\.destination\)/);
+});
