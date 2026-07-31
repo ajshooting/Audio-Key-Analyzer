@@ -99,7 +99,8 @@ function startCapture() {
 
     let stream = capturedStream;
     try {
-      let audioContext = new AudioContext();
+      let audioContext = new AudioContext({ sampleRate: 44100 });
+      log(`AudioContext sample rate: ${audioContext.sampleRate} Hz`);
       await audioContext.audioWorklet.addModule('audio-processor.js');
       const source = audioContext.createMediaStreamSource(stream);
       let workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
